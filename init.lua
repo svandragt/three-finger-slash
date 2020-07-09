@@ -7,11 +7,15 @@ function get_screen_windows(windows, screen)
     -- Process those windows on the screen, excluding desktop
     for i, win in ipairs(windows) do
         if win:screen():getUUID() == screen:getUUID() then
-            if win ~= hs.window.desktop() then
+            if win ~= hs.window.desktop() and win ~= hs.window.focusedWindow()  then
                 focused_wins[#focused_wins + 1] = win
             end
         end
     end
+
+    -- focused window at the front 
+    focused_wins[#focused_wins + 1] = hs.window.focusedWindow()
+
     return focused_wins
 end
 
@@ -31,7 +35,7 @@ function get_window_position(win, index)
             screen_frame.x + (#windows - index) * 40, -- x
             screen_frame.y + (index - 1) * 40, -- y
             math.min(win_frame.w, screen_frame.w - ((#windows - index) * 40)),
-        math.min(win_frame.h, screen_frame.h - menubar_offset - ((index - 1) * 40))),
+        	math.min(win_frame.h, screen_frame.h - menubar_offset - ((index - 1) * 40))),
         nil
     }
     return win_pos
@@ -46,8 +50,8 @@ function cascade_windows()
     local layout = {}
     for index, win in ipairs(windows) do
         layout[#layout + 1] = get_window_position(win, index)
+        win:raise()
     end
-    
     -- Apply the layout
     hs.layout.apply(layout)
 end
