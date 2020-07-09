@@ -1,5 +1,5 @@
-# cascading-windows
-Cascading Windows: One click access to all windows using HammerSpoon (http://www.hammerspoon.org/)
+# Three Finger Slash
+One click access to all windows using HammerSpoon (http://www.hammerspoon.org/)
 
 Expose, tab switchers, window tiling... But you're still frustrated trying to find the right window? This Hammerspoon script might be what you need.
 
