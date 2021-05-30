@@ -15,3 +15,10 @@ Expose, tab switchers, window tiling... But you're still frustrated trying to fi
 The default key is the Three Finger Slash (command option control /):
 
 ![screenshot](https://user-images.githubusercontent.com/594871/87063699-985c4e80-c206-11ea-8a7c-a0906ef7e854.png)
+
+## Setup
+
+- Click on the Hammerspoon menu bar icon and choose Open Config from the menu.
+- Add the contents of the lua file in this repository to the file in the editor
+- Click on the Hammerspoon menu bar icon and choose Reload Config from the menu.
+- Perform the Three Finger Slash!
