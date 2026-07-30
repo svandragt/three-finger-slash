@@ -4,46 +4,95 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-file Hammerspoon (macOS) Lua config that cascades all visible windows on the
-focused screen, bound to `cmd+alt+ctrl+/` ("three finger slash").
+Two independent implementations of the same feature — cascade every visible window on the
+focused screen, focused window flush left and in front:
 
-## Running / testing changes
+- `macos/init.lua` — Hammerspoon config, bound to `cmd+alt+ctrl+/`.
+- `linux/three_finger_slash.py` — Python 3 + python-xlib, X11/EWMH, run once per press and
+  bound externally (sxhkd/xbindkeys/DE shortcut).
 
-There is no build, lint, or test suite — the code only runs inside Hammerspoon's embedded
-Lua runtime, where the `hs.*` API exists.
+They share no code and cannot — there is no common runtime. What they share is the cascade
+formula, deliberately kept identical. **Change the geometry in one and change it in the
+other.**
 
-Hammerspoon does **not** load this repo's `init.lua`; it loads `~/.hammerspoon/init.lua`.
-To iterate:
+## Commands
 
-1. Copy or symlink this file into place, e.g. `ln -sf "$PWD/init.lua" ~/.hammerspoon/init.lua`
-2. Reload: Hammerspoon menu bar icon → Reload Config (or `hs.reload()` in the Hammerspoon Console)
-3. Press `cmd+alt+ctrl+/` with several windows open on one screen
+```sh
+python3 linux/test_cascade.py          # unit tests for the cascade geometry (no X needed)
+python3 -m unittest test_cascade.GetWindowPositionTest.test_single_window_fills_top_left_of_work_area  # single test, run from linux/
+./linux/three_finger_slash.py          # run the Linux cascade once
+./linux/dump_geometry.py               # print the window list, frames and frame extents
+```
 
-Debug via the Hammerspoon Console (menu bar icon → Console); `print()` and errors surface
-there. Window management requires Accessibility permission for Hammerspoon in System
-Settings, or every `hs.window` call silently returns nothing useful.
+There is no build or lint step, and no test suite for the macOS side — Lua only runs inside
+Hammerspoon.
 
-## Architecture
+### Testing the Linux port without a desktop
 
-`init.lua` is three functions plus one `hs.hotkey.bind` at the bottom:
+It can be exercised headlessly against a real reparenting, EWMH-compliant WM, which is the
+only way to catch the frame-extents bugs:
 
-- `get_screen_windows(windows, screen)` — filters to windows on the target screen,
-  excluding the desktop and the focused window, then appends the focused window **last**.
-  That ordering is load-bearing: last in the list means front of the cascade.
-- `get_window_position(win, index)` — computes one entry for `hs.layout.apply`.
-- `cascade_windows()` — assembles the layout, `raise()`s each window in order, then
-  applies the layout in a single `hs.layout.apply` call.
+```sh
+apt-get install -y python3-xlib openbox xterm x11-utils xvfb
+export DISPLAY=:99
+Xvfb :99 -screen 0 1920x1080x24 & sleep 1; openbox & sleep 1
+for i in 1 2 3 4; do xterm -T "win$i" -geometry 80x24+$((i*50))+$((i*50)) -e sleep 600 & sleep 0.5; done
+./linux/dump_geometry.py && ./linux/three_finger_slash.py && ./linux/dump_geometry.py
+```
 
-Two things to know before editing:
+Expect x to step down by 40 and y up by 40, with the active window at `x=0`. Note `xterm -T`
+is overwritten by the shell unless you pass `-e sleep`, and background X processes do not
+survive between separate shell invocations — run the whole sequence in one script.
 
-- **`windows` is an intentional global.** `cascade_windows` assigns it without `local`, and
-  `get_window_position` reads `#windows` to compute the reverse-cascade x offset. Making it
-  `local` breaks the layout silently. If you refactor, pass the count in as a parameter.
-- **The layout entry is a positional table**, not keyed — `hs.layout.apply` expects
-  `{application, window, screen, unitrect, framerect, fullframerect}`. Here slots 4 and 6
-  are `nil` and slot 5 carries the `hs.geometry.rect`. Don't reorder or drop the `nil`s.
+### Testing the macOS side
 
-Cascade geometry lives in two magic numbers: a `40`px step per window in both axes, and
-`menubar_offset = 14` subtracted from available height. Windows keep their own width/height
-where they fit (`math.min` against the remaining screen space) rather than being forced to a
-uniform size.
+Hammerspoon loads `~/.hammerspoon/init.lua`, **not** this repo's file. Symlink it
+(`ln -sf "$PWD/macos/init.lua" ~/.hammerspoon/init.lua`), then menu bar icon → Reload Config.
+Debug in the Hammerspoon Console. Window management needs Accessibility permission, or every
+`hs.window` call silently returns nothing useful.
+
+## The shared cascade formula
+
+For 1-based `index` of `count` windows, step 40px:
+
+- `x = screen.x + (count - index) * 40`, `y = screen.y + (index - 1) * 40`
+- `w = min(win.w, screen.w - (count - index) * 40)`
+- `h = min(win.h, screen.h - panel_offset - (index - 1) * 40)`
+
+Higher index = further forward = less x offset. The focused window is appended **last**, so
+it lands at `x = screen.x` and in front. `panel_offset` is macOS's `menubar_offset = 14`; on
+Linux it's 0 because `_NET_WORKAREA` already excludes panels.
+
+## macOS specifics (`macos/init.lua`)
+
+- **`windows` is an intentional global.** `cascade_windows` assigns it without `local` and
+  `get_window_position` reads `#windows` for the x offset. Making it `local` breaks the layout
+  silently. (The Python port fixes this properly by passing `count` as a parameter.)
+- **The layout entry is a positional table** — `hs.layout.apply` expects
+  `{application, window, screen, unitrect, framerect, fullframerect}`. Slots 4 and 6 are `nil`
+  and slot 5 carries the `hs.geometry.rect`. Don't reorder or drop the `nil`s.
+
+## Linux specifics (`linux/three_finger_slash.py`)
+
+`get_window_position` is pure and is the only unit-tested part. Everything else is EWMH
+plumbing in `WindowManager`. Four traps, all of which fail *silently*:
+
+1. **Frame extents.** `get_geometry()` returns the client area relative to the decoration
+   frame. `outer_frame()` uses `translate_coords` plus `_NET_FRAME_EXTENTS` to get the outer
+   frame in root coordinates; `set_frame()` subtracts the extents again because
+   `_NET_MOVERESIZE_WINDOW` positions the frame but sizes the client area. Skip either and
+   windows drift by the titlebar height.
+2. **Maximized windows ignore `_NET_MOVERESIZE_WINDOW`** — the WM discards the request with no
+   error. Hence the unmaximize pass. `dpy.sync()` is *not* enough to know it took effect: it
+   round-trips to the X server, not to the WM, and until the WM processes it
+   `_NET_FRAME_EXTENTS` still reports the maximized (often borderless) decorations, so sizing
+   overshoots by the border width. `wait_until_unpinned()` polls `_NET_WM_STATE` for this.
+   That's why the code unmaximizes *all* windows, waits, and only then reads frames.
+3. **`_NET_CLIENT_LIST_STACKING`, not `_NET_CLIENT_LIST`.** The latter is creation order.
+   Stacking is bottom→top, which is exactly the order the cascade wants. Reversing it
+   mirrors the cascade.
+4. **`_NET_WORKAREA` is one rect for all monitors** on most WMs. Intersect with the XRandR
+   monitor rect and fall back to the raw monitor rect when they don't overlap.
+
+Wayland is rejected up front in `open_display()` — under XWayland the script would see only
+XWayland clients, which is worse than refusing.
