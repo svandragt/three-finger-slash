@@ -35,6 +35,7 @@ SKIP_WINDOW_TYPES = (
     "_NET_WM_WINDOW_TYPE_DESKTOP",
     "_NET_WM_WINDOW_TYPE_DOCK",
     "_NET_WM_WINDOW_TYPE_SPLASH",
+    "_NET_WM_WINDOW_TYPE_NOTIFICATION",
 )
 
 # _NET_WM_DESKTOP value meaning "show on all desktops".
