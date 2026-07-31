@@ -29,7 +29,7 @@ class GetWindowPositionTest(unittest.TestCase):
     def test_offsets_match_the_hammerspoon_formula(self):
         """Same reverse cascade as get_window_position in ../macos/init.lua."""
         count = 5
-        for index in range(1, count + 1):
+        for index in range(2, count + 1):
             with self.subTest(index=index):
                 pos = self.position(index, count)
                 self.assertEqual(pos.x, self.SCREEN.x + (count - index) * STEP)
@@ -47,10 +47,18 @@ class GetWindowPositionTest(unittest.TestCase):
         pos = self.position(2, 3, win=Rect(0, 0, 640, 480))
         self.assertEqual((pos.w, pos.h), (640, 480))
 
+    def test_back_window_is_flush_right_moved_not_resized(self):
+        """Index 1 of more than one: same width, moved so its right edge hits the screen edge."""
+        win = Rect(0, 0, 640, 480)
+        pos = self.position(1, 3, win=win)
+        self.assertEqual(pos.w, win.w)
+        self.assertEqual(pos.x + pos.w, self.SCREEN.x + self.SCREEN.w)
+        self.assertEqual(pos.y, self.SCREEN.y)
+
     def test_oversized_window_is_clamped_to_remaining_space(self):
         huge = Rect(0, 0, 5000, 5000)
         count = 3
-        for index in range(1, count + 1):
+        for index in range(2, count + 1):
             with self.subTest(index=index):
                 pos = self.position(index, count, win=huge)
                 self.assertEqual(pos.w, self.SCREEN.w - (count - index) * STEP)
@@ -74,8 +82,15 @@ class GetWindowPositionTest(unittest.TestCase):
     def test_offsets_are_relative_to_a_non_zero_screen_origin(self):
         """Second monitor: the cascade is anchored to that monitor, not to 0,0."""
         screen = Rect(1920, 0, 1280, 1024)
-        pos = self.position(1, 3, screen=screen)
-        self.assertEqual(pos.x, 1920 + 2 * STEP)
+        pos = self.position(2, 3, screen=screen)
+        self.assertEqual(pos.x, 1920 + 1 * STEP)
+        self.assertEqual(pos.y, STEP)
+
+    def test_back_window_flush_right_is_relative_to_a_non_zero_screen_origin(self):
+        screen = Rect(1920, 0, 1280, 1024)
+        win = Rect(0, 0, 640, 480)
+        pos = self.position(1, 3, win=win, screen=screen)
+        self.assertEqual(pos.x + pos.w, 1920 + 1280)
         self.assertEqual(pos.y, 0)
 
 

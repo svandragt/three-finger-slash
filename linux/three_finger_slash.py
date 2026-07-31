@@ -96,15 +96,21 @@ def get_window_position(win_frame, index, count, screen_frame, panel_offset=PANE
 
     Higher index means further forward: less x offset (so the front window is
     flush left, keeping every title visible) and more y offset. Windows keep
-    their own size wherever it still fits on screen.
+    their own size wherever it still fits on screen. The back-most window
+    (index 1 of more than one) is flush right instead, moved rather than
+    resized, so it doesn't leave a gap when it's narrower than its step.
     """
-    x_offset = (count - index) * STEP
     y_offset = (index - 1) * STEP
+    height = min(win_frame.h, screen_frame.h - panel_offset - y_offset)
+    if index == 1 and count > 1:
+        width = min(win_frame.w, screen_frame.w)
+        return Rect(screen_frame.x + screen_frame.w - width, screen_frame.y, width, height)
+    x_offset = (count - index) * STEP
     return Rect(
         screen_frame.x + x_offset,
         screen_frame.y + y_offset,
         min(win_frame.w, screen_frame.w - x_offset),
-        min(win_frame.h, screen_frame.h - panel_offset - y_offset),
+        height,
     )
 
 

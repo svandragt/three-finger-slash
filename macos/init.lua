@@ -21,21 +21,31 @@ end
 
 function get_window_position(win, index)
     local menubar_offset = 14
-    
+
     local screen = win:screen()
     local screen_frame = screen:frame()
     local win_frame = win:frame()
-    
+
+    local y = screen_frame.y + (index - 1) * 40
+    local h = math.min(win_frame.h, screen_frame.h - menubar_offset - ((index - 1) * 40))
+
+    local x, w
+    if index == 1 and #windows > 1 then
+        -- Back-most window: flush right, moved rather than resized, so a
+        -- window narrower than its step doesn't leave a gap.
+        w = math.min(win_frame.w, screen_frame.w)
+        x = screen_frame.x + screen_frame.w - w
+    else
+        x = screen_frame.x + (#windows - index) * 40
+        w = math.min(win_frame.w, screen_frame.w - ((#windows - index) * 40))
+    end
+
     local win_pos = {
         win:application(),
         win,
         screen,
         nil,
-        hs.geometry.rect(
-            screen_frame.x + (#windows - index) * 40, -- x
-            screen_frame.y + (index - 1) * 40, -- y
-            math.min(win_frame.w, screen_frame.w - ((#windows - index) * 40)),
-        	math.min(win_frame.h, screen_frame.h - menubar_offset - ((index - 1) * 40))),
+        hs.geometry.rect(x, y, w, h),
         nil
     }
     return win_pos

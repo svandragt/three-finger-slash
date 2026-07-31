@@ -63,6 +63,12 @@ Higher index = further forward = less x offset. The focused window is appended *
 it lands at `x = screen.x` and in front. `panel_offset` is macOS's `menubar_offset = 14`; on
 Linux it's 0 because `_NET_WORKAREA` already excludes panels.
 
+The back-most window (`index == 1`, only when `count > 1`) is a special case: instead of the
+stepped `x_offset`, it's moved (not resized) so its right edge sits flush against
+`screen.x + screen.w`, using `w = min(win.w, screen.w)`. Without this, a window narrower than
+its step leaves a gap on the right instead of reaching the screen edge. A lone window
+(`count == 1`) is unaffected — it's both front and back and keeps the flush-left formula.
+
 ## macOS specifics (`macos/init.lua`)
 
 - **`windows` is an intentional global.** `cascade_windows` assigns it without `local` and
